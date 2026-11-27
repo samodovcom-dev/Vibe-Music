@@ -21,18 +21,18 @@ document.addEventListener("DOMContentLoaded", () => {
         return `${min}:${String(sec).padStart(2, "0")}`;
     }
 
-    // Создание карточки трека
-    function createTrackCard(track, index, online = false) {
+    function createCard(track, index, online = false) {
         const card = document.createElement("article");
         card.className = "track-card";
 
         const cover = document.createElement("img");
         cover.className = "cover";
-        cover.src = track.cover || "https://placehold.co/300x300/211638/ffffff?text=VIBE";
-        cover.alt = track.title || "Music";
+        cover.src = track.cover ||
+            "https://placehold.co/300x300/211638/ffffff?text=VIBE";
+        cover.alt = track.title;
 
         const title = document.createElement("h3");
-        title.textContent = track.title || "Без названия";
+        title.textContent = track.title;
 
         const artist = document.createElement("p");
         artist.textContent = track.artist || "Неизвестный исполнитель";
@@ -46,7 +46,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         heart.onclick = () => {
             playlists.toggleFavorite(track);
-            heart.textContent = playlists.isFavorite(track.id) ? "♥" : "♡";
+            heart.textContent =
+                playlists.isFavorite(track.id) ? "♥" : "♡";
         };
 
         const play = document.createElement("button");
@@ -54,13 +55,9 @@ document.addEventListener("DOMContentLoaded", () => {
         play.textContent = "▶";
 
         play.onclick = () => {
-            if (online) {
-                player.setPlaylist(onlineTracks);
-                player.play(index);
-            } else {
-                player.setPlaylist(localTracks);
-                player.play(index);
-            }
+            const list = online ? onlineTracks : localTracks;
+            player.setPlaylist(list);
+            player.play(index);
         };
 
         bottom.append(heart, play);
@@ -69,24 +66,21 @@ document.addEventListener("DOMContentLoaded", () => {
         return card;
     }
 
-    // Отображение онлайн-музыки
-    function renderOnlineTracks() {
-        const container = $("searchResults");
+    function renderTracks(container, tracks, online = false) {
         container.innerHTML = "";
 
-        if (!onlineTracks.length) {
-            container.textContent = "Ничего не найдено.";
+        if (!tracks.length) {
+            container.textContent = "Музыка пока не найдена.";
             return;
         }
 
-        onlineTracks.forEach((track, index) => {
-            container.appendChild(
-                createTrackCard(track, index, true)
-            );
+        tracks.forEach((track, index) => {
+            container.appendChild(createCard(track, index, online));
         });
     }
 
-    // Поиск
+    // ПОИСК МУЗЫКИ
+
     async function performSearch() {
         const query = $("search").value.trim();
 
@@ -96,10 +90,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
             onlineTracks = await search.search(query);
-            renderOnlineTracks();
+            renderTracks($("searchResults"), onlineTracks, true);
         } catch (error) {
+            console.error(error);
             $("searchResults").textContent =
-                "Не удалось выполнить поиск. Проверь интернет и настройки API.";
+                "Ошибка поиска. Проверь интернет и настройки API.";
         }
     }
 
@@ -109,10 +104,25 @@ document.addEventListener("DOMContentLoaded", () => {
         if (event.key === "Enter") performSearch();
     });
 
-    // Управление плеером
+    // УПРАВЛЕНИЕ ПЛЕЕРОМ
+
     $("play").addEventListener("click", () => player.toggle());
     $("next").addEventListener("click", () => player.next());
     $("previous").addEventListener("click", () => player.previous());
+
+    $("volume").addEventListener("input", event => {
+        player.setVolume(Number(event.target.value) / 100);
+    });
+
+    $("shuffle").addEventListener("click", () => {
+        const enabled = player.toggleShuffle();
+        $("shuffle").classList.toggle("active", enabled);
+    });
+
+    $("repeat").addEventListener("click", () => {
+        const enabled = player.toggleRepeat();
+        $("repeat").classList.toggle("active", enabled);
+    });
 
     player.onUpdate = state => {
         $("play").textContent = state.playing ? "❚❚" : "▶";
@@ -130,9 +140,49 @@ document.addEventListener("DOMContentLoaded", () => {
         $("fill").style.width = state.duration
             ? (state.currentTime / state.duration * 100) + "%"
             : "0%";
+
+        $("shuffle").classList.toggle("active", state.shuffle);
+        $("repeat").classList.toggle("active", state.repeat);
     };
 
-    // Плейлисты
+    // ПЕРЕМОТКА
+
+    $("progressBar").addEventListener("click", event => {
+        const rect = event.currentTarget.getBoundingClientRect();
+
+        if (!rect.width) return;
+
+        const percent =
+            (event.clientX - rect.left) / rect.width * 100;
+
+        player.seekPercent(percent);
+    });
+
+    // ЛОКАЛЬНАЯ МУЗЫКА
+
+    $("addMusic").addEventListener("click", () => {
+        $("fileInput").click();
+    });
+
+    $("fileInput").addEventListener("change", event => {
+        const files = Array.from(event.target.files);
+
+        const newTracks = files.map(file => ({
+            id: "local-" + crypto.randomUUID(),
+            title: file.name.replace(/\.[^/.]+$/, ""),
+            artist: "Моя музыка",
+            cover: "https://placehold.co/300x300/211638/ffffff?text=VIBE",
+            audio: URL.createObjectURL(file)
+        }));
+
+        localTracks.push(...newTracks);
+
+        player.setPlaylist(localTracks);
+        renderTracks($("cards"), localTracks);
+    });
+
+    // ПЛЕЙЛИСТЫ
+
     function renderPlaylists() {
         const container = $("playlistList");
         container.innerHTML = "";
@@ -142,24 +192,24 @@ document.addEventListener("DOMContentLoaded", () => {
             item.className = "playlist-item";
 
             const name = document.createElement("strong");
-            name.textContent = playlist.name +
-                " (" + playlist.tracks.length + ")";
+            name.textContent =
+                playlist.name + " (" + playlist.tracks.length + ")";
 
             const add = document.createElement("button");
-            add.textContent = "Добавить текущую музыку";
+            add.textContent = "Добавить текущий трек";
 
             add.onclick = () => {
                 const track = player.getCurrentTrack();
 
                 if (!track) {
-                    alert("Сначала выбери трек.");
+                    alert("Сначала выбери музыку.");
                     return;
                 }
 
                 if (playlists.addTrack(playlist.id, track)) {
                     renderPlaylists();
                 } else {
-                    alert("Трек уже добавлен или плейлист недоступен.");
+                    alert("Трек уже есть в плейлисте.");
                 }
             };
 
@@ -182,10 +232,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     $("createPlaylist").addEventListener("click", () => {
-        const name = $("playlistName").value;
-
         try {
-            playlists.create(name);
+            playlists.create($("playlistName").value);
             $("playlistName").value = "";
             renderPlaylists();
         } catch (error) {
@@ -193,48 +241,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // Локальная музыка
-    const fileInput = document.createElement("input");
-    fileInput.type = "file";
-    fileInput.accept = "audio/*";
-    fileInput.multiple = true;
-    fileInput.hidden = true;
-
-    document.body.appendChild(fileInput);
-
-    const localButton = document.createElement("button");
-    localButton.textContent = "＋ Добавить музыку с устройства";
-    $("cards").before(localButton);
-
-    localButton.addEventListener("click", () => fileInput.click());
-
-    fileInput.addEventListener("change", () => {
-        const files = Array.from(fileInput.files);
-
-        localTracks = files.map((file, index) => ({
-            id: "local-" + index + "-" + file.name,
-            title: file.name.replace(/\.[^/.]+$/, ""),
-            artist: "Моя музыка",
-            cover: "https://placehold.co/300x300/211638/ffffff?text=VIBE",
-            audio: URL.createObjectURL(file)
-        }));
-
-        player.setPlaylist(localTracks);
-
-        const container = $("cards");
-        container.innerHTML = "";
-
-        localTracks.forEach((track, index) => {
-            container.appendChild(createTrackCard(track, index));
-        });
-    });
-
-    // Полоса перемотки
-    $("progressBar").addEventListener("click", event => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        const percent = (event.clientX - rect.left) / rect.width * 100;
-        player.seekPercent(percent);
-    });
+    // ЗАПУСК
 
     renderPlaylists();
 
