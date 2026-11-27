@@ -1,21 +1,22 @@
 
-"use strict";
-
 class VibePlayer {
     constructor() {
         this.audio = new Audio();
         this.playlist = [];
-        this.currentIndex = 0;
+        this.currentIndex = -1;
 
-        this.shuffle = false;
-        this.repeat = false;
-
+        this.isPlaying = false;
+        this.isShuffle = false;
+        this.repeatMode = 0;
         this.volume = 0.8;
+
         this.audio.volume = this.volume;
 
-        this.onUpdate = null;
-
         this.audio.addEventListener("timeupdate", () => {
+            this.update();
+        });
+
+        this.audio.addEventListener("loadedmetadata", () => {
             this.update();
         });
 
@@ -24,72 +25,111 @@ class VibePlayer {
         });
 
         this.audio.addEventListener("play", () => {
-            this.update();
+            this.isPlaying = true;
+            this.dispatch("play");
         });
 
         this.audio.addEventListener("pause", () => {
-            this.update();
+            this.isPlaying = false;
+            this.dispatch("pause");
         });
 
-        this.audio.addEventListener("loadedmetadata", () => {
-            this.update();
+        this.audio.addEventListener("error", () => {
+            this.dispatch("error");
         });
     }
 
-    // Добавить песни в очередь
-    setPlaylist(tracks) {
-        this.playlist = tracks;
-        this.currentIndex = 0;
-        this.update();
+    dispatch(eventName) {
+        window.dispatchEvent(
+            new CustomEvent("vibe:" + eventName, {
+                detail: this.getState()
+            })
+        );
     }
 
-    // Добавить один трек
+    setPlaylist(tracks, startIndex = 0) {
+        this.playlist = Array.isArray(tracks) ? tracks : [];
+
+        if (this.playlist.length === 0) {
+            this.currentIndex = -1;
+            this.audio.pause();
+            this.audio.removeAttribute("src");
+            this.audio.load();
+            this.dispatch("change");
+            return;
+        }
+
+        this.currentIndex = Math.max(
+            0,
+            Math.min(startIndex, this.playlist.length - 1)
+        );
+
+        this.loadCurrentTrack();
+    }
+
     addTrack(track) {
+        if (!track || !track.url) return;
+
         this.playlist.push(track);
-        this.update();
+
+        if (this.currentIndex === -1) {
+            this.currentIndex = 0;
+            this.loadCurrentTrack();
+        }
     }
 
-    // Выбрать песню
-    async play(index = this.currentIndex) {
-        if (!this.playlist.length) return;
+    loadCurrentTrack() {
+        const track = this.getCurrentTrack();
 
-        if (index < 0 || index >= this.playlist.length) {
-            return;
+        if (!track || !track.url) return;
+
+        this.audio.pause();
+        this.audio.src = track.url;
+        this.audio.load();
+
+        this.dispatch("change");
+    }
+
+    async play(index = null) {
+        if (index !== null) {
+            if (index < 0 || index >= this.playlist.length) return;
+
+            this.currentIndex = index;
+            this.loadCurrentTrack();
         }
 
-        this.currentIndex = index;
+        if (this.currentIndex === -1) {
+            if (this.playlist.length === 0) return;
 
-        const track = this.playlist[index];
-
-        if (!track || !track.audio) {
-            console.warn("У этого трека нет аудиофайла.");
-            this.update();
-            return;
+            this.currentIndex = 0;
+            this.loadCurrentTrack();
         }
-
-        this.audio.src = track.audio;
 
         try {
             await this.audio.play();
-            this.update();
         } catch (error) {
             console.error("Ошибка воспроизведения:", error);
+            this.dispatch("error");
         }
     }
 
-    // Пауза
     pause() {
         this.audio.pause();
     }
 
-    // Продолжить
-    resume() {
-        if (this.audio.src) {
-            this.audio.play().catch(console.error);
+    async resume() {
+        if (!this.audio.src) {
+            await this.play();
+            return;
+        }
+
+        try {
+            await this.audio.play();
+        } catch (error) {
+            console.error("Не удалось продолжить:", error);
         }
     }
 
-    // Play / Pause
     toggle() {
         if (this.audio.paused) {
             this.resume();
@@ -98,134 +138,145 @@ class VibePlayer {
         }
     }
 
-    // Следующая песня
     next() {
-        if (!this.playlist.length) return;
+        if (this.playlist.length === 0) return;
 
-        let nextIndex;
+        if (this.isShuffle && this.playlist.length > 1) {
+            let nextIndex;
 
-        if (this.shuffle && this.playlist.length > 1) {
             do {
                 nextIndex = Math.floor(
                     Math.random() * this.playlist.length
                 );
             } while (nextIndex === this.currentIndex);
+
+            this.currentIndex = nextIndex;
         } else {
-            nextIndex =
-                (this.currentIndex + 1) % this.playlist.length;
+            this.currentIndex++;
+
+            if (this.currentIndex >= this.playlist.length) {
+                if (this.repeatMode === 2) {
+                    this.currentIndex = 0;
+                } else {
+                    this.currentIndex = this.playlist.length - 1;
+                    this.pause();
+                    this.audio.currentTime = 0;
+                    return;
+                }
+            }
         }
 
-        this.play(nextIndex);
+        this.loadCurrentTrack();
+        this.play();
     }
 
-    // Предыдущая песня
     previous() {
-        if (!this.playlist.length) return;
+        if (this.playlist.length === 0) return;
 
         if (this.audio.currentTime > 3) {
             this.audio.currentTime = 0;
             return;
         }
 
-        const previousIndex =
-            (this.currentIndex - 1 + this.playlist.length)
-            % this.playlist.length;
+        this.currentIndex--;
 
-        this.play(previousIndex);
+        if (this.currentIndex < 0) {
+            this.currentIndex = this.playlist.length - 1;
+        }
+
+        this.loadCurrentTrack();
+        this.play();
     }
 
-    // Перемотка
     seek(seconds) {
-        if (!Number.isFinite(this.audio.duration)) return;
+        if (!Number.isFinite(seconds)) return;
 
-        this.audio.currentTime = Math.max(
-            0,
-            Math.min(seconds, this.audio.duration)
-        );
+        if (Number.isFinite(this.audio.duration)) {
+            this.audio.currentTime = Math.max(
+                0,
+                Math.min(seconds, this.audio.duration)
+            );
+        }
     }
 
-    // Перемотка в процентах
     seekPercent(percent) {
         if (!Number.isFinite(this.audio.duration)) return;
 
-        const safePercent = Math.max(
-            0,
-            Math.min(percent, 100)
+        const safePercent = Math.max(0, Math.min(100, percent));
+
+        this.seek(
+            this.audio.duration * safePercent / 100
         );
-
-        this.seek(this.audio.duration * safePercent / 100);
     }
 
-    // Громкость
     setVolume(value) {
-        this.volume = Math.max(0, Math.min(1, value));
+        const volume = Number(value);
+
+        if (!Number.isFinite(volume)) return;
+
+        this.volume = Math.max(0, Math.min(1, volume));
         this.audio.volume = this.volume;
+        this.dispatch("volume");
     }
 
-    // Выключить звук
     mute() {
         this.audio.muted = !this.audio.muted;
-        return this.audio.muted;
+        this.dispatch("volume");
     }
 
-    // Перемешивание
     toggleShuffle() {
-        this.shuffle = !this.shuffle;
-        return this.shuffle;
+        this.isShuffle = !this.isShuffle;
+        this.dispatch("shuffle");
+        return this.isShuffle;
     }
 
-    // Повтор
     toggleRepeat() {
-        this.repeat = !this.repeat;
-        return this.repeat;
+        this.repeatMode = (this.repeatMode + 1) % 3;
+        this.dispatch("repeat");
+        return this.repeatMode;
     }
 
-    // Обработка окончания песни
     handleEnded() {
-        if (this.repeat) {
+        if (this.repeatMode === 1) {
             this.audio.currentTime = 0;
-            this.audio.play().catch(console.error);
-        } else {
-            this.next();
+            this.play();
+            return;
         }
+
+        this.next();
     }
 
-    // Текущий трек
     getCurrentTrack() {
+        if (this.currentIndex < 0) return null;
+
         return this.playlist[this.currentIndex] || null;
     }
 
-    // Информация о воспроизведении
     getState() {
         return {
-            playing: !this.audio.paused,
-            currentTime: this.audio.currentTime,
-            duration: this.audio.duration || 0,
-            volume: this.audio.volume,
-            muted: this.audio.muted,
-            shuffle: this.shuffle,
-            repeat: this.repeat,
+            track: this.getCurrentTrack(),
             currentIndex: this.currentIndex,
-            track: this.getCurrentTrack()
+            playlistLength: this.playlist.length,
+            isPlaying: this.isPlaying,
+            isShuffle: this.isShuffle,
+            repeatMode: this.repeatMode,
+            currentTime: this.audio.currentTime || 0,
+            duration: this.audio.duration || 0,
+            volume: this.volume
         };
     }
 
-    // Обновление интерфейса
     update() {
-        if (typeof this.onUpdate === "function") {
-            this.onUpdate(this.getState());
-        }
+        this.dispatch("update");
     }
 
-    // Очистка плеера
     destroy() {
         this.audio.pause();
         this.audio.removeAttribute("src");
         this.audio.load();
         this.playlist = [];
-        this.update();
+        this.currentIndex = -1;
     }
 }
 
-// Создаём глобальный экземпляр
 window.VibeAudioPlayer = new VibePlayer();
