@@ -1,50 +1,73 @@
 
-"use strict";
-
 class VibePlaylists {
     constructor() {
-        this.storageKey = "vibe_music_playlists";
-        this.favoriteKey = "vibe_music_favorites";
+        this.playlistsKey = "vibe_music_playlists";
+        this.favoritesKey = "vibe_music_favorites";
 
-        this.playlists = this.load(this.storageKey, [
-            { id: "liked", name: "Избранное", tracks: [] }
-        ]);
+        this.playlists = this.load(this.playlistsKey, []);
+        this.favorites = this.load(this.favoritesKey, []);
 
-        this.favorites = this.load(this.favoriteKey, []);
+        this.ensureFavorites();
     }
 
     load(key, fallback) {
         try {
             const data = localStorage.getItem(key);
-            return data ? JSON.parse(data) : fallback;
-        } catch {
+
+            if (!data) return fallback;
+
+            const parsed = JSON.parse(data);
+
+            return Array.isArray(parsed) ? parsed : fallback;
+        } catch (error) {
+            console.error("Ошибка загрузки данных:", error);
             return fallback;
         }
     }
 
     save() {
-        localStorage.setItem(
-            this.storageKey,
-            JSON.stringify(this.playlists)
-        );
+        try {
+            localStorage.setItem(
+                this.playlistsKey,
+                JSON.stringify(this.playlists)
+            );
 
-        localStorage.setItem(
-            this.favoriteKey,
-            JSON.stringify(this.favorites)
-        );
+            localStorage.setItem(
+                this.favoritesKey,
+                JSON.stringify(this.favorites)
+            );
+        } catch (error) {
+            console.error("Ошибка сохранения:", error);
+        }
+    }
+
+    ensureFavorites() {
+        if (!this.playlists.some(p => p.id === "favorites")) {
+            this.playlists.unshift({
+                id: "favorites",
+                name: "Избранное",
+                tracks: [],
+                createdAt: Date.now(),
+                system: true
+            });
+        }
+
+        this.save();
     }
 
     create(name) {
-        name = name.trim();
+        const playlistName = String(name || "").trim();
 
-        if (!name) {
-            throw new Error("Введите название плейлиста");
+        if (!playlistName) {
+            throw new Error("Введите название плейлиста.");
         }
 
         const playlist = {
-            id: Date.now().toString(),
-            name,
-            tracks: []
+            id: this.createId(),
+            name: playlistName,
+            tracks: [],
+            createdAt: Date.now(),
+            system: false
         };
 
         this.playlists.push(playlist);
@@ -53,23 +76,39 @@ class VibePlaylists {
         return playlist;
     }
 
-    delete(id) {
-        if (id === "liked") return false;
+    createId() {
+        if (
+            window.crypto &&
+            typeof window.crypto.randomUUID === "function"
+        ) {
+            return window.crypto.randomUUID();
+        }
 
-        this.playlists = this.playlists.filter(
-            playlist => playlist.id !== id
+        return "playlist_" + Date.now() + "_" +
+            Math.random().toString(36).slice(2);
+    }
+
+    delete(id) {
+        if (id === "favorites") return false;
+
+        const index = this.playlists.findIndex(
+            playlist => playlist.id === id
         );
 
+        if (index === -1) return false;
+
+        this.playlists.splice(index, 1);
         this.save();
+
         return true;
     }
 
     addTrack(playlistId, track) {
-        const playlist = this.playlists.find(
-            item => item.id === playlistId
-        );
+        if (!track || !track.url) return false;
 
-        if (!playlist || !track) return false;
+        const playlist = this.getPlaylist(playlistId);
+
+        if (!playlist) return false;
 
         const exists = playlist.tracks.some(
             item => item.id === track.id
@@ -77,41 +116,50 @@ class VibePlaylists {
 
         if (exists) return false;
 
-        playlist.tracks.push(track);
+        playlist.tracks.push({ ...track });
         this.save();
 
         return true;
     }
 
     removeTrack(playlistId, trackId) {
-        const playlist = this.playlists.find(
-            item => item.id === playlistId
-        );
+        const playlist = this.getPlaylist(playlistId);
 
-        if (!playlist) return;
+        if (!playlist) return false;
 
         playlist.tracks = playlist.tracks.filter(
             track => track.id !== trackId
         );
 
         this.save();
+
+        return true;
     }
 
     toggleFavorite(track) {
-        if (!track || track.id === undefined) return false;
+        if (!track || !track.url) return false;
 
-        const index = this.favorites.findIndex(
+        const exists = this.favorites.some(
             item => item.id === track.id
         );
 
-        if (index !== -1) {
-            this.favorites.splice(index, 1);
+        if (exists) {
+            this.favorites = this.favorites.filter(
+                item => item.id !== track.id
+            );
         } else {
-            this.favorites.push(track);
+            this.favorites.push({ ...track });
+        }
+
+        const favoritesPlaylist = this.getPlaylist("favorites");
+
+        if (favoritesPlaylist) {
+            favoritesPlaylist.tracks = [...this.favorites];
         }
 
         this.save();
-        return index === -1;
+
+        return !exists;
     }
 
     isFavorite(trackId) {
@@ -125,13 +173,34 @@ class VibePlaylists {
     }
 
     getAll() {
-        return [...this.playlists];
+        return this.playlists.map(playlist => ({
+            ...playlist,
+            tracks: [...playlist.tracks]
+        }));
     }
 
     getPlaylist(id) {
         return this.playlists.find(
             playlist => playlist.id === id
         ) || null;
+    }
+
+    getPlaylistTracks(id) {
+        const playlist = this.getPlaylist(id);
+
+        return playlist ? [...playlist.tracks] : [];
+    }
+
+    clearFavorites() {
+        this.favorites = [];
+
+        const favoritesPlaylist = this.getPlaylist("favorites");
+
+        if (favoritesPlaylist) {
+            favoritesPlaylist.tracks = [];
+        }
+
+        this.save();
     }
 }
 
