@@ -9,6 +9,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.view.View;
 import android.view.WindowManager;
+import android.graphics.Color;
 
 public class MainActivity extends Activity {
 
@@ -18,12 +19,12 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        getWindow().setStatusBarColor(
-            android.graphics.Color.rgb(16, 11, 32)
-        );
+        getWindow().setStatusBarColor(Color.rgb(9, 7, 17));
+        getWindow().setNavigationBarColor(Color.rgb(9, 7, 17));
+        getWindow().getDecorView().setSystemUiVisibility(0);
 
-        getWindow().setNavigationBarColor(
-            android.graphics.Color.rgb(16, 11, 32)
+        getWindow().addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         );
 
         webView = new WebView(this);
@@ -32,15 +33,20 @@ public class MainActivity extends Activity {
 
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
+
+        webView.setBackgroundColor(Color.rgb(9, 7, 17));
 
         webView.setWebViewClient(new WebViewClient());
+
         webView.setWebChromeClient(new WebChromeClient());
 
-        webView.loadUrl("file:///android_asset/index.html");
-
         setContentView(webView);
+
+        webView.loadUrl("file:///android_asset/index.html");
     }
 
     @Override
@@ -50,5 +56,15 @@ public class MainActivity extends Activity {
         } else {
             super.onBackPressed();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (webView != null) {
+            webView.destroy();
+            webView = null;
+        }
+
+        super.onDestroy();
     }
 }
