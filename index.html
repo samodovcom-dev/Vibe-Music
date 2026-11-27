@@ -3,53 +3,63 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#100b20">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="theme-color" content="#090711">
     <title>VIBE MUSIC</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-
 <body>
 
 <header class="header">
     <h1>VIBE<span>MUSIC</span></h1>
-    <p>Feel every beat.</p>
+    <p>YOUR MUSIC. YOUR VIBE.</p>
 </header>
 
 <main class="container">
 
     <section class="search-section">
-        <input id="search" type="search" placeholder="Найти музыку...">
+        <input id="search" type="search"
+               placeholder="⌕  Поиск музыки, исполнителей...">
         <button id="searchBtn">Найти</button>
     </section>
 
+    <section class="welcome">
+        <p class="welcome-label">WELCOME TO YOUR WORLD</p>
+        <h2>Почувствуй<br>каждый <span>бит.</span></h2>
+        <p>Твоя музыка — твои эмоции.</p>
+    </section>
+
     <section>
-        <h2>Онлайн-поиск</h2>
+        <h2>Поиск музыки</h2>
         <div id="searchResults" class="cards">
             <p>Найди свою любимую музыку.</p>
         </div>
     </section>
 
     <section>
-        <h2>Моя музыка</h2>
-        <button id="addMusic">＋ Добавить музыку с устройства</button>
-        <input id="fileInput" type="file" accept="audio/*" multiple hidden>
+        <h2>Моя библиотека</h2>
+        <button id="addMusic">＋ Добавить музыку</button>
+        <input id="fileInput" type="file"
+               accept="audio/*" multiple hidden>
         <div id="cards" class="cards"></div>
     </section>
 
     <section>
         <h2>Мои плейлисты</h2>
         <div class="playlist-create">
-            <input id="playlistName" placeholder="Название плейлиста">
-            <button id="createPlaylist">Создать</button>
+            <input id="playlistName"
+                   placeholder="Название плейлиста">
+            <button id="createPlaylist">＋ Создать</button>
         </div>
         <div id="playlistList"></div>
     </section>
 
     <section class="player">
 
+        <p class="player-label">NOW PLAYING</p>
+
         <img id="nowCover"
-             src="https://placehold.co/300x300/211638/ffffff?text=VIBE"
+             src="https://placehold.co/500x500/211638/ffffff?text=VIBE"
              alt="Обложка">
 
         <h2 id="nowTitle">Выбери трек</h2>
@@ -81,6 +91,11 @@
     </section>
 
 </main>
+
+<footer>
+    <p>VIBE MUSIC © 2026</p>
+    <span>MADE FOR MUSIC LOVERS</span>
+</footer>
 
 <script src="js/player.js"></script>
 <script src="js/search.js"></script>
