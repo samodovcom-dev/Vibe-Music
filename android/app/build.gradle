@@ -1,17 +1,3 @@
-
 plugins {
     id 'com.android.application'
-}
-
-android {
-    namespace 'com.vibemusic.app'
-    compileSdk 35
-
-    defaultConfig {
-        applicationId 'com.vibemusic.app'
-        minSdk 23
-        targetSdk 35
-        versionCode 1
-        versionName '1.0'
-    }
 }
