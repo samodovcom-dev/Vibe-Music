@@ -2,261 +2,77 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VIBE MUSIC</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#100b20">
+    <title>VIBE MUSIC</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
 
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+<body>
+    <header class="header">
+        <h1>VIBE<span>MUSIC</span></h1>
+        <p>Feel every beat.</p>
+    </header>
 
-:root {
-    --bg: #080710;
-    --panel: #12101f;
-    --panel2: #1a1530;
-    --purple: #8b35ff;
-    --pink: #c34dff;
-    --text: #ffffff;
-    --muted: #9992b5;
-}
+    <main class="container">
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+        <section class="search-section">
+            <input id="search" type="search"
+                placeholder="Найти музыку...">
+            <button id="searchBtn">Найти</button>
+        </section>
 
-body {
-    font-family: Inter, Arial, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-}
+        <section>
+            <h2>Онлайн-поиск</h2>
+            <div id="searchResults" class="cards">
+                <p>Ищи любимую музыку через интернет.</p>
+            </div>
+        </section>
 
-button {
-    border: none;
-    cursor: pointer;
-    color: white;
-    font-family: inherit;
-}
+        <section>
+            <h2>Моя музыка</h2>
+            <div id="cards" class="cards"></div>
+        </section>
 
-.app {
-    display: flex;
-    min-height: 100vh;
-}
+        <section>
+            <h2>Мои плейлисты</h2>
+            <div class="playlist-create">
+                <input id="playlistName"
+                    placeholder="Название плейлиста">
+                <button id="createPlaylist">Создать</button>
+            </div>
+            <div id="playlistList"></div>
+        </section>
 
-/* SIDEBAR */
+        <section class="player">
+            <img id="nowCover"
+                src="https://placehold.co/300x300/211638/ffffff?text=VIBE"
+                alt="Обложка">
 
-.sidebar {
-    width: 245px;
-    padding: 28px 18px;
-    background: #0d0b17;
-    border-right: 1px solid #241b3c;
-    display: flex;
-    flex-direction: column;
-}
+            <h2 id="nowTitle">Выбери трек</h2>
+            <p id="nowArtist">VIBE MUSIC</p>
 
-.logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 40px;
-}
+            <div class="progress">
+                <span id="elapsed">0:00</span>
+                <div id="progressBar">
+                    <div id="fill"></div>
+                </div>
+                <span id="duration">0:00</span>
+            </div>
 
-.logo-icon {
-    width: 48px;
-    height: 48px;
-    background: linear-gradient(135deg, #8b35ff, #d24bff);
-    border-radius: 15px;
-    display: grid;
-    place-items: center;
-    font-size: 24px;
-    box-shadow: 0 0 25px #8b35ff55;
-}
+            <div class="controls">
+                <button id="previous">◀|</button>
+                <button id="play">▶</button>
+                <button id="next">|▶</button>
+            </div>
+        </section>
 
-.logo h2 {
-    font-size: 18px;
-    letter-spacing: 1px;
-}
+    </main>
 
-.logo small {
-    display: block;
-    color: var(--muted);
-    margin-top: 4px;
-    font-size: 11px;
-}
-
-.nav-title {
-    color: #716b88;
-    font-size: 11px;
-    margin: 15px 10px;
-    letter-spacing: 1.5px;
-}
-
-.nav-btn {
-    width: 100%;
-    background: transparent;
-    text-align: left;
-    padding: 14px;
-    border-radius: 13px;
-    margin-bottom: 6px;
-    color: #aaa3c1;
-    transition: .2s;
-    font-size: 14px;
-}
-
-.nav-btn:hover,
-.nav-btn.active {
-    background: linear-gradient(90deg, #7425dc44, #8b35ff12);
-    color: white;
-}
-
-.nav-btn.active {
-    border-left: 3px solid var(--purple);
-}
-
-.sidebar-bottom {
-    margin-top: auto;
-    padding: 15px;
-    background: var(--panel);
-    border: 1px solid #2c2145;
-    border-radius: 15px;
-}
-
-.sidebar-bottom p {
-    color: var(--muted);
-    font-size: 12px;
-    margin-top: 8px;
-}
-
-/* MAIN */
-
-.main {
-    flex: 1;
-    min-width: 0;
-    padding: 30px;
-    padding-bottom: 120px;
-}
-
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 30px;
-}
-
-.greeting h1 {
-    font-size: 27px;
-}
-
-.greeting p {
-    color: var(--muted);
-    margin-top: 8px;
-}
-
-.search {
-    width: min(360px, 100%);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 17px;
-    background: var(--panel);
-    border: 1px solid #302347;
-    border-radius: 30px;
-}
-
-.search input {
-    width: 100%;
-    background: transparent;
-    outline: none;
-    border: none;
-    color: white;
-    font-size: 14px;
-}
-
-.search input::placeholder {
-    color: #77708e;
-}
-
-/* HERO */
-
-.hero {
-    display: grid;
-    grid-template-columns: 1.3fr .7fr;
-    gap: 20px;
-    margin-bottom: 30px;
-}
-
-.hero-card {
-    min-height: 260px;
-    border-radius: 23px;
-    padding: 28px;
-    background:
-      radial-gradient(circle at 85% 20%, #a33cff55, transparent 35%),
-      linear-gradient(135deg, #21123b, #11101e);
-    border: 1px solid #3a255c;
-    position: relative;
-    overflow: hidden;
-}
-
-.hero-card h2 {
-    font-size: 28px;
-    margin-bottom: 10px;
-}
-
-.hero-card p {
-    color: #b6a9d6;
-    margin-bottom: 25px;
-}
-
-.primary-btn {
-    background: linear-gradient(135deg, #8b35ff, #c34dff);
-    padding: 13px 24px;
-    border-radius: 30px;
-    font-weight: 600;
-    box-shadow: 0 5px 25px #8b35ff44;
-}
-
-.hero-note {
-    position: absolute;
-    right: 30px;
-    bottom: 20px;
-    font-size: 90px;
-    opacity: .18;
-}
-
-.stats-card {
-    background: var(--panel);
-    border: 1px solid #302347;
-    border-radius: 23px;
-    padding: 25px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.stats-card .big {
-    font-size: 34px;
-    font-weight: 800;
-    color: #c17aff;
-}
-
-.stats-card p {
-    color: var(--muted);
-    margin-top: 8px;
-}
-
-/* SECTIONS */
-
-.section {
-    margin-bottom: 30px;
-}
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 18px;
-}
-
-.section
+    <script src="js/player.js"></script>
+    <script src="js/search.js"></script>
+    <script src="js/playlists.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
