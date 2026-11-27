@@ -1,156 +1,418 @@
 
-"use strict";
-
 document.addEventListener("DOMContentLoaded", () => {
-
-    const $ = id => document.getElementById(id);
-
     const player = window.VibeAudioPlayer;
     const search = window.VibeSearch;
     const playlists = window.VibePlaylists;
 
-    let localTracks = [];
-    let onlineTracks = [];
+    const $ = id => document.getElementById(id);
+
+    const elements = {
+        search: $("search"),
+        searchBtn: $("searchBtn"),
+        searchResults: $("searchResults"),
+        cards: $("cards"),
+        addMusic: $("addMusic"),
+        fileInput: $("fileInput"),
+        playlistName: $("playlistName"),
+        createPlaylist: $("createPlaylist"),
+        playlistList: $("playlistList"),
+        nowCover: $("nowCover"),
+        nowTitle: $("nowTitle"),
+        nowArtist: $("nowArtist"),
+        play: $("play"),
+        previous: $("previous"),
+        next: $("next"),
+        shuffle: $("shuffle"),
+        repeat: $("repeat"),
+        volume: $("volume"),
+        progressBar: $("progressBar"),
+        fill: $("fill"),
+        elapsed: $("elapsed"),
+        duration: $("duration"),
+        equalizer: $("equalizer")
+    };
+
+    let library = [];
+    let currentSearchResults = [];
+
+    const defaultCover =
+        "https://placehold.co/500x500/211638/ffffff?text=VIBE";
+
+    function escapeHTML(value) {
+        return String(value ?? "").replace(/[&<>"']/g, char => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;"
+        })[char]);
+    }
 
     function formatTime(seconds) {
         if (!Number.isFinite(seconds)) return "0:00";
 
-        const min = Math.floor(seconds / 60);
-        const sec = Math.floor(seconds % 60);
+        const minutes = Math.floor(seconds / 60);
+        const remaining = Math.floor(seconds % 60);
 
-        return `${min}:${String(sec).padStart(2, "0")}`;
+        return `${minutes}:${String(remaining).padStart(2, "0")}`;
     }
 
-    function createCard(track, index, online = false) {
+    function notify(message) {
+        let toast = $("vibeToast");
+
+        if (!toast) {
+            toast = document.createElement("div");
+            toast.id = "vibeToast";
+
+            Object.assign(toast.style, {
+                position: "fixed",
+                bottom: "25px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                background: "#241632",
+                color: "#fff",
+                border: "1px solid #9b4dff",
+                padding: "13px 20px",
+                borderRadius: "14px",
+                zIndex: "9999",
+                boxShadow: "0 5px 25px #0008",
+                maxWidth: "90%",
+                textAlign: "center"
+            });
+
+            document.body.appendChild(toast);
+        }
+
+        toast.textContent = message;
+        toast.style.display = "block";
+
+        clearTimeout(toast.timer);
+
+        toast.timer = setTimeout(() => {
+            toast.style.display = "none";
+        }, 2500);
+    }
+
+    function createTrackCard(track, index, source) {
         const card = document.createElement("article");
+
         card.className = "track-card";
 
-        const cover = document.createElement("img");
-        cover.className = "cover";
-        cover.src = track.cover ||
-            "https://placehold.co/300x300/211638/ffffff?text=VIBE";
-        cover.alt = track.title;
+        const cover = escapeHTML(track.cover || defaultCover);
+        const title = escapeHTML(track.title || "Без названия");
+        const artist = escapeHTML(track.artist || "Неизвестный исполнитель");
 
-        const title = document.createElement("h3");
-        title.textContent = track.title;
+        card.innerHTML = `
+            <img src="${cover}" alt="Обложка"
+                 onerror="this.src='${defaultCover}'">
 
-        const artist = document.createElement("p");
-        artist.textContent = track.artist || "Неизвестный исполнитель";
+            <h3>${title}</h3>
+            <p>${artist}</p>
 
-        const bottom = document.createElement("div");
-        bottom.className = "card-bottom";
+            <button class="track-play">▶ Слушать</button>
+            <button class="track-favorite">
+                ${playlists.isFavorite(track.id) ? "♥" : "♡"}
+            </button>
+        `;
 
-        const heart = document.createElement("button");
-        heart.className = "heart";
-        heart.textContent = playlists.isFavorite(track.id) ? "♥" : "♡";
+        card.querySelector(".track-play").addEventListener("click", () => {
+            if (source === "library") {
+                player.setPlaylist(library, index);
+            } else {
+                player.setPlaylist(currentSearchResults, index);
+            }
 
-        heart.onclick = () => {
-            playlists.toggleFavorite(track);
-            heart.textContent =
-                playlists.isFavorite(track.id) ? "♥" : "♡";
-        };
+            player.play();
+        });
 
-        const play = document.createElement("button");
-        play.className = "mini-play";
-        play.textContent = "▶";
+        card.querySelector(".track-favorite").addEventListener("click", () => {
+            const added = playlists.toggleFavorite(track);
 
-        play.onclick = () => {
-            const list = online ? onlineTracks : localTracks;
-            player.setPlaylist(list);
-            player.play(index);
-        };
+            card.querySelector(".track-favorite").textContent =
+                added ? "♥" : "♡";
 
-        bottom.append(heart, play);
-        card.append(cover, title, artist, bottom);
+            renderLibrary();
+            notify(added ? "Добавлено в избранное ♥" : "Удалено из избранного");
+        });
 
         return card;
     }
 
-    function renderTracks(container, tracks, online = false) {
-        container.innerHTML = "";
+    function renderLibrary() {
+        if (!elements.cards) return;
+
+        elements.cards.innerHTML = "";
+
+        const favoriteCard = document.createElement("article");
+        favoriteCard.className = "track-card";
+
+        favoriteCard.innerHTML = `
+            <h3>♥ Избранное</h3>
+            <p>${playlists.getFavorites().length} треков</p>
+            <button>Открыть</button>
+        `;
+
+        favoriteCard.querySelector("button").addEventListener("click", () => {
+            const tracks = playlists.getFavorites();
+
+            if (!tracks.length) {
+                notify("В избранном пока нет музыки");
+                return;
+            }
+
+            player.setPlaylist(tracks, 0);
+            player.play();
+        });
+
+        elements.cards.appendChild(favoriteCard);
+
+        library.forEach((track, index) => {
+            elements.cards.appendChild(
+                createTrackCard(track, index, "library")
+            );
+        });
+    }
+
+    function renderSearchResults(tracks) {
+        if (!elements.searchResults) return;
+
+        elements.searchResults.innerHTML = "";
 
         if (!tracks.length) {
-            container.textContent = "Музыка пока не найдена.";
+            elements.searchResults.textContent = "Музыка не найдена.";
             return;
         }
 
         tracks.forEach((track, index) => {
-            container.appendChild(createCard(track, index, online));
+            elements.searchResults.appendChild(
+                createTrackCard(track, index, "search")
+            );
         });
     }
 
-    // ПОИСК МУЗЫКИ
+    function renderPlaylists() {
+        if (!elements.playlistList) return;
+
+        elements.playlistList.innerHTML = "";
+
+        playlists.getAll().forEach(playlist => {
+            const card = document.createElement("article");
+
+            card.className = "playlist-card";
+
+            const name = escapeHTML(playlist.name);
+            const count = playlist.tracks.length;
+
+            card.innerHTML = `
+                <h3>♫ ${name}</h3>
+                <p>${count} треков</p>
+                <button class="open-playlist">▶ Открыть</button>
+                ${playlist.id !== "favorites"
+                    ? '<button class="delete-playlist">Удалить</button>'
+                    : ""}
+            `;
+
+            card.querySelector(".open-playlist").addEventListener("click", () => {
+                const tracks = playlists.getPlaylistTracks(playlist.id);
+
+                if (!tracks.length) {
+                    notify("Этот плейлист пока пуст");
+                    return;
+                }
+
+                player.setPlaylist(tracks, 0);
+                player.play();
+            });
+
+            const deleteButton = card.querySelector(".delete-playlist");
+
+            if (deleteButton) {
+                deleteButton.addEventListener("click", () => {
+                    if (confirm("Удалить этот плейлист?")) {
+                        playlists.delete(playlist.id);
+                        renderPlaylists();
+                        notify("Плейлист удалён");
+                    }
+                });
+            }
+
+            elements.playlistList.appendChild(card);
+        });
+    }
 
     async function performSearch() {
-        const query = $("search").value.trim();
+        const query = elements.search?.value.trim();
 
-        if (!query) return;
+        if (!query) {
+            notify("Введи название песни или исполнителя");
+            return;
+        }
 
-        $("searchResults").textContent = "Ищем музыку...";
+        elements.searchBtn.disabled = true;
+        elements.searchBtn.textContent = "Поиск...";
+
+        elements.searchResults.textContent = "Ищем музыку...";
 
         try {
-            onlineTracks = await search.search(query);
-            renderTracks($("searchResults"), onlineTracks, true);
+            currentSearchResults = await search.search(query);
+            renderSearchResults(currentSearchResults);
+
+            if (!currentSearchResults.length) {
+                notify("Ничего не найдено");
+            }
         } catch (error) {
             console.error(error);
-            $("searchResults").textContent =
-                "Ошибка поиска. Проверь интернет и настройки API.";
+
+            elements.searchResults.textContent =
+                "Не удалось выполнить поиск. Проверь интернет и Client ID.";
+
+            notify("Ошибка поиска музыки");
+        } finally {
+            elements.searchBtn.disabled = false;
+            elements.searchBtn.textContent = "Найти";
         }
     }
 
-    $("searchBtn").addEventListener("click", performSearch);
+    function addLocalFiles(files) {
+        const audioFiles = Array.from(files).filter(file =>
+            file.type.startsWith("audio/")
+        );
 
-    $("search").addEventListener("keydown", event => {
+        if (!audioFiles.length) {
+            notify("Аудиофайлы не найдены");
+            return;
+        }
+
+        audioFiles.forEach(file => {
+            const url = URL.createObjectURL(file);
+
+            library.push({
+                id: "local_" + Date.now() + "_" + Math.random(),
+                title: file.name.replace(/\.[^/.]+$/, ""),
+                artist: "Моя музыка",
+                cover: defaultCover,
+                url,
+                duration: 0,
+                source: "Local",
+                file
+            });
+        });
+
+        renderLibrary();
+        notify(`Добавлено треков: ${audioFiles.length}`);
+    }
+
+    function updatePlayer(state) {
+        const track = state.track;
+
+        if (track) {
+            elements.nowTitle.textContent =
+                track.title || "Без названия";
+
+            elements.nowArtist.textContent =
+                track.artist || "Неизвестный исполнитель";
+
+            elements.nowCover.src = track.cover || defaultCover;
+        } else {
+            elements.nowTitle.textContent = "Выбери трек";
+            elements.nowArtist.textContent = "VIBE MUSIC";
+            elements.nowCover.src = defaultCover;
+        }
+
+        elements.play.textContent =
+            state.isPlaying ? "Ⅱ" : "▶";
+
+        elements.equalizer.classList.toggle(
+            "playing",
+            state.isPlaying
+        );
+
+        elements.shuffle.style.color =
+            state.isShuffle ? "#e044ff" : "#ffffff";
+
+        elements.repeat.textContent =
+            state.repeatMode === 1 ? "🔂" :
+            state.repeatMode === 2 ? "🔁" : "🔁";
+
+        elements.elapsed.textContent =
+            formatTime(state.currentTime);
+
+        elements.duration.textContent =
+            formatTime(state.duration);
+
+        const percent = state.duration > 0
+            ? state.currentTime / state.duration * 100
+            : 0;
+
+        elements.fill.style.width = percent + "%";
+    }
+
+    elements.searchBtn?.addEventListener("click", performSearch);
+
+    elements.search?.addEventListener("keydown", event => {
         if (event.key === "Enter") performSearch();
     });
 
-    // УПРАВЛЕНИЕ ПЛЕЕРОМ
+    elements.addMusic?.addEventListener("click", () => {
+        elements.fileInput.click();
+    });
 
-    $("play").addEventListener("click", () => player.toggle());
-    $("next").addEventListener("click", () => player.next());
-    $("previous").addEventListener("click", () => player.previous());
+    elements.fileInput?.addEventListener("change", event => {
+        addLocalFiles(event.target.files);
+        event.target.value = "";
+    });
 
-    $("volume").addEventListener("input", event => {
+    elements.createPlaylist?.addEventListener("click", () => {
+        try {
+            playlists.create(elements.playlistName.value);
+            elements.playlistName.value = "";
+
+            renderPlaylists();
+            notify("Плейлист создан!");
+        } catch (error) {
+            notify(error.message);
+        }
+    });
+
+    elements.playlistName?.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+            elements.createPlaylist.click();
+        }
+    });
+
+    elements.play?.addEventListener("click", () => {
+        player.toggle();
+    });
+
+    elements.previous?.addEventListener("click", () => {
+        player.previous();
+    });
+
+    elements.next?.addEventListener("click", () => {
+        player.next();
+    });
+
+    elements.shuffle?.addEventListener("click", () => {
+        const enabled = player.toggleShuffle();
+        notify(enabled ? "Перемешивание включено" : "Перемешивание выключено");
+    });
+
+    elements.repeat?.addEventListener("click", () => {
+        const mode = player.toggleRepeat();
+
+        notify(
+            mode === 0 ? "Повтор выключен" :
+            mode === 1 ? "Повтор одного трека" :
+            "Повтор всего плейлиста"
+        );
+    });
+
+    elements.volume?.addEventListener("input", event => {
         player.setVolume(Number(event.target.value) / 100);
     });
 
-    $("shuffle").addEventListener("click", () => {
-        const enabled = player.toggleShuffle();
-        $("shuffle").classList.toggle("active", enabled);
-    });
-
-    $("repeat").addEventListener("click", () => {
-        const enabled = player.toggleRepeat();
-        $("repeat").classList.toggle("active", enabled);
-    });
-
-    player.onUpdate = state => {
-        $("play").textContent = state.playing ? "❚❚" : "▶";
-
-        if (state.track) {
-            $("nowTitle").textContent = state.track.title;
-            $("nowArtist").textContent = state.track.artist;
-            $("nowCover").src = state.track.cover ||
-                "https://placehold.co/300x300/211638/ffffff?text=VIBE";
-        }
-
-        $("elapsed").textContent = formatTime(state.currentTime);
-        $("duration").textContent = formatTime(state.duration);
-
-        $("fill").style.width = state.duration
-            ? (state.currentTime / state.duration * 100) + "%"
-            : "0%";
-
-        $("shuffle").classList.toggle("active", state.shuffle);
-        $("repeat").classList.toggle("active", state.repeat);
-    };
-
-    // ПЕРЕМОТКА
-
-    $("progressBar").addEventListener("click", event => {
-        const rect = event.currentTarget.getBoundingClientRect();
-
-        if (!rect.width) return;
+    elements.progressBar?.addEventListener("click", event => {
+        const rect = elements.progressBar.getBoundingClientRect();
 
         const percent =
             (event.clientX - rect.left) / rect.width * 100;
@@ -158,92 +420,29 @@ document.addEventListener("DOMContentLoaded", () => {
         player.seekPercent(percent);
     });
 
-    // ЛОКАЛЬНАЯ МУЗЫКА
-
-    $("addMusic").addEventListener("click", () => {
-        $("fileInput").click();
+    window.addEventListener("vibe:update", event => {
+        updatePlayer(event.detail);
     });
 
-    $("fileInput").addEventListener("change", event => {
-        const files = Array.from(event.target.files);
-
-        const newTracks = files.map(file => ({
-            id: "local-" + crypto.randomUUID(),
-            title: file.name.replace(/\.[^/.]+$/, ""),
-            artist: "Моя музыка",
-            cover: "https://placehold.co/300x300/211638/ffffff?text=VIBE",
-            audio: URL.createObjectURL(file)
-        }));
-
-        localTracks.push(...newTracks);
-
-        player.setPlaylist(localTracks);
-        renderTracks($("cards"), localTracks);
+    window.addEventListener("vibe:change", event => {
+        updatePlayer(event.detail);
     });
 
-    // ПЛЕЙЛИСТЫ
-
-    function renderPlaylists() {
-        const container = $("playlistList");
-        container.innerHTML = "";
-
-        playlists.getAll().forEach(playlist => {
-            const item = document.createElement("div");
-            item.className = "playlist-item";
-
-            const name = document.createElement("strong");
-            name.textContent =
-                playlist.name + " (" + playlist.tracks.length + ")";
-
-            const add = document.createElement("button");
-            add.textContent = "Добавить текущий трек";
-
-            add.onclick = () => {
-                const track = player.getCurrentTrack();
-
-                if (!track) {
-                    alert("Сначала выбери музыку.");
-                    return;
-                }
-
-                if (playlists.addTrack(playlist.id, track)) {
-                    renderPlaylists();
-                } else {
-                    alert("Трек уже есть в плейлисте.");
-                }
-            };
-
-            item.append(name, add);
-
-            if (playlist.id !== "liked") {
-                const remove = document.createElement("button");
-                remove.textContent = "Удалить";
-
-                remove.onclick = () => {
-                    playlists.delete(playlist.id);
-                    renderPlaylists();
-                };
-
-                item.append(remove);
-            }
-
-            container.appendChild(item);
-        });
-    }
-
-    $("createPlaylist").addEventListener("click", () => {
-        try {
-            playlists.create($("playlistName").value);
-            $("playlistName").value = "";
-            renderPlaylists();
-        } catch (error) {
-            alert(error.message);
-        }
+    window.addEventListener("vibe:play", event => {
+        updatePlayer(event.detail);
     });
 
-    // ЗАПУСК
+    window.addEventListener("vibe:pause", event => {
+        updatePlayer(event.detail);
+    });
 
+    window.addEventListener("vibe:error", () => {
+        notify("Не удалось воспроизвести этот трек");
+    });
+
+    renderLibrary();
     renderPlaylists();
+    updatePlayer(player.getState());
 
     console.log("VIBE MUSIC запущен!");
 });
