@@ -19,7 +19,7 @@
 
     <section class="search-section">
         <input id="search" type="search"
-               placeholder="⌕  Поиск музыки, исполнителей...">
+               placeholder="⌕ Поиск музыки, исполнителей...">
         <button id="searchBtn">Найти</button>
     </section>
 
@@ -30,7 +30,7 @@
     </section>
 
     <section>
-        <h2>Поиск музыки</h2>
+        <h2>Результаты поиска</h2>
         <div id="searchResults" class="cards">
             <p>Найди свою любимую музыку.</p>
         </div>
@@ -47,8 +47,7 @@
     <section>
         <h2>Мои плейлисты</h2>
         <div class="playlist-create">
-            <input id="playlistName"
-                   placeholder="Название плейлиста">
+            <input id="playlistName" placeholder="Название плейлиста">
             <button id="createPlaylist">＋ Создать</button>
         </div>
         <div id="playlistList"></div>
@@ -64,6 +63,13 @@
 
         <h2 id="nowTitle">Выбери трек</h2>
         <p id="nowArtist">VIBE MUSIC</p>
+
+        <div class="equalizer" id="equalizer">
+            <span></span><span></span><span></span>
+            <span></span><span></span><span></span>
+            <span></span><span></span><span></span>
+            <span></span><span></span>
+        </div>
 
         <div class="progress">
             <span id="elapsed">0:00</span>
